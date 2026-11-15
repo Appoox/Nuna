@@ -48,6 +48,8 @@ Code edits reload the development server automatically. Rebuild the image
 | `pyproject.toml`, `uv.lock` | Dependencies and their exact pinned versions |
 | `Dockerfile`, `compose.yaml` | The development environment |
 | `.env.example` | Every setting the project reads, with development values |
+| `docs/spec.md` | The agreed specification: data model, rules and open questions |
+| `CLAUDE.md` | Working rules and build plan for Claude Code |
 
 ## Changing dependencies
 
