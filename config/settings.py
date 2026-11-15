@@ -67,6 +67,8 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS")
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 
 INSTALLED_APPS = [
+    # This project's own apps.
+    "entries",
     # Wagtail: the editing interface and everything it needs.
     "wagtail.embeds",
     "wagtail.sites",

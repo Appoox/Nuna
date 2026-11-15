@@ -4,8 +4,9 @@ Backend for a tracker of false, misleading and unsupported statements by a
 government, with the evidence behind each one. Built with Django 5.2 and
 Wagtail 7.4 on PostgreSQL 18. The site does not have a name yet.
 
-This is the project scaffold: Django and Wagtail run, and nothing else. The
-data models, the public API and the production setup arrive in later changes.
+So far it holds the project scaffold and the first two lists, speakers and
+topics. The other data models, the public API and the production setup
+arrive in later changes.
 
 ## Requirements
 
@@ -42,6 +43,7 @@ Code edits reload the development server automatically. Rebuild the image
 | Path | What it is |
 | --- | --- |
 | `config/` | Project settings, URL routes and the server entry point |
+| `entries/` | Speakers and topics; fact sheets and actions join them later |
 | `manage.py` | Django's command-line tool |
 | `pyproject.toml`, `uv.lock` | Dependencies and their exact pinned versions |
 | `Dockerfile`, `compose.yaml` | The development environment |
