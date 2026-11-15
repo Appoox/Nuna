@@ -1,0 +1,20 @@
+# Secrets and machine-specific settings. Commit .env.example instead.
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Files Django creates at run time
+/media/
+/staticfiles/
+
+# Database dumps
+*.sql
+*.dump
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store

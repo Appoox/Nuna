@@ -1,0 +1,29 @@
+# Project metadata and dependencies, managed by uv (https://docs.astral.sh/uv/).
+#
+# The ranges below keep the project on the long-support release lines.
+# The exact versions that get installed are pinned in uv.lock.
+#   - add or change a dependency:  edit this file, then run `uv lock`
+#   - take newer patch releases:   run `uv lock --upgrade`
+
+[project]
+# Placeholder name: the site has no name yet. Renaming later only touches
+# this line and uv.lock (run `uv lock` after changing it).
+name = "fact-tracker"
+version = "0.1.0"
+description = "Backend for a tracker of false, misleading and unsupported government statements."
+# Python 3.13 only, to match .python-version and the Docker image.
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    # Django 5.2 is the current long-term support (LTS) release.
+    "django>=5.2,<5.3",
+    # Wagtail 7.4 is the current LTS release and supports Django 5.2.
+    "wagtail>=7.4,<7.5",
+    # PostgreSQL driver (psycopg 3). The "binary" extra bundles libpq,
+    # so the Docker image needs no extra system packages.
+    "psycopg[binary]>=3.3,<4",
+]
+
+[tool.uv]
+# This is an application, not a library: uv installs the dependencies
+# but does not try to build or install the project itself.
+package = false

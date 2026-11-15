@@ -1,0 +1,59 @@
+# Development setup. `docker compose up` starts PostgreSQL and Django's
+# development server.
+#
+# There is deliberately no web server or proxy (no Caddy) here: this file is
+# for working on your own machine only. Production gets its own setup later.
+#
+# Values written as ${NAME} are read from the .env file beside this file.
+# Copy .env.example to .env before the first run.
+
+services:
+  # PostgreSQL 18: the project's database.
+  db:
+    image: postgres:18
+    environment:
+      # On first start the image creates this database and user.
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # Keep the data in a named volume so it survives `docker compose down`.
+      # From PostgreSQL 18 on, the image expects the volume at
+      # /var/lib/postgresql (older images used /var/lib/postgresql/data) and
+      # keeps each major version in its own subfolder, here 18/docker.
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      # Reports "healthy" once Postgres accepts connections. The doubled $$
+      # makes the variables resolve inside the container, not here.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Django + Wagtail, run with Django's development server.
+  web:
+    build: .
+    # Pass every variable in .env to Django (see config/settings.py).
+    env_file: .env
+    environment:
+      # Inside Compose the database is reached by its service name.
+      POSTGRES_HOST: db
+      # Uploaded files go to a named volume, outside the mounted code.
+      DJANGO_MEDIA_ROOT: /data/media
+    volumes:
+      # Mount the repository over /app: code edits reload the server at once.
+      - .:/app
+      # Uploaded files survive container rebuilds.
+      - media-data:/data/media
+    ports:
+      # http://localhost:8000 on your machine. Change WEB_PORT in .env if
+      # port 8000 is already taken.
+      - "${WEB_PORT:-8000}:8000"
+    depends_on:
+      # Wait until Postgres is accepting connections before starting Django.
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  media-data:

@@ -1,0 +1,9 @@
+# Keep these out of the Docker build: they are not needed in the image,
+# and leaving them out makes builds faster and keeps secrets off the image.
+.git
+.env
+.venv
+__pycache__
+*.py[cod]
+media
+staticfiles
