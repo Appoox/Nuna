@@ -7,8 +7,9 @@ in the admin's main menu.
 
 Menu positions (menu_order) used by this project, lowest first:
     110 Fact sheets, 120 Actions, 130 Sources, 140 Speakers, 150 Topics
-The first three are added by later changes. Wagtail's own "Pages" item is
-at 100 and "Images" at 300, so these items sit between the two.
+Fact sheets and Actions are added by later changes. Sources has its screens
+in evidence/wagtail_hooks.py. Wagtail's own "Pages" item is at 100 and
+"Images" at 300, so these items sit between the two.
 """
 
 from wagtail.snippets.models import register_snippet

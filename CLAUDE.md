@@ -82,7 +82,8 @@ Steps for every patch:
 
 Development runs entirely in Docker Compose. There is no Caddy locally.
 Cloud sessions have Docker and Docker Compose, so the same commands run
-there, with PostgreSQL 18 from `compose.yaml`.
+there, with PostgreSQL 18 from `compose.yaml`, once the start-up steps
+under "Cloud session start-up" below have been done.
 
 ```sh
 cp .env.example .env                                     # first time only
@@ -96,6 +97,51 @@ docker compose up                                        # http://localhost:8000
 Dependencies are managed with uv: edit `pyproject.toml`, run `uv lock`,
 rebuild the image, and include both files in the patch.
 
+### Cloud session start-up
+
+A cloud session needs two things before the commands above work. Docker is
+installed but its daemon is not running, and programs inside a container do
+not trust the session's network certificate, so the image build fails at
+`pip install uv`. Run this once at the start of a chat, from the repository.
+Nothing here changes the repository, and none of it belongs in a patch.
+
+```sh
+S=/tmp/session-docker    # helper files, kept outside the repository
+mkdir -p "$S"
+
+# 1. Start the Docker daemon, unless it is already answering. The daemon
+#    stops whenever the session's worker restarts: run this line again then.
+#    The old process-ID files have to go first, or it refuses to start.
+docker info >/dev/null 2>&1 || { rm -f /var/run/docker.pid /var/run/docker/containerd/containerd.pid; (nohup dockerd > "$S/dockerd.log" 2>&1 &); }
+# Wait until `docker info` answers (a few seconds) before going on.
+
+# 2. Make a base image that trusts the session's certificate.
+cp /root/.ccr/ca-bundle.crt "$S/"
+cat > "$S/Dockerfile" <<'EOF'
+FROM python:3.13-slim
+COPY ca-bundle.crt /etc/ssl/certs/session-ca-bundle.crt
+ENV SSL_CERT_FILE=/etc/ssl/certs/session-ca-bundle.crt \
+    PIP_CERT=/etc/ssl/certs/session-ca-bundle.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/session-ca-bundle.crt
+EOF
+docker build -t session-python-ca:3.13-slim "$S"
+
+# 3. Build the project's unchanged Dockerfile on that base image, through a
+#    Compose override that also stays outside the repository.
+cat > "$S/compose.yaml" <<'EOF'
+services:
+  web:
+    build:
+      additional_contexts:
+        - python:3.13-slim=docker-image://session-python-ca:3.13-slim
+EOF
+cp -n .env.example .env
+docker compose -f compose.yaml -f "$S/compose.yaml" build
+```
+
+After that the plain commands work: `docker compose run --rm web ...`. Use
+the two `-f` options again whenever the image has to be rebuilt.
+
 ## Stack (decided)
 
 - Python 3.13, Django 5.2 LTS, Wagtail 7.4 LTS, PostgreSQL 18.
@@ -106,6 +152,8 @@ rebuild the image, and include both files in the patch.
 - Django REST Framework for the read-only API.
 - Tests use Django's own test runner.
 - Uploaded files stay on the server's disk for now.
+- `evidence` imports from `entries` (its citations will point at fact sheets
+  and actions). `entries` never imports from `evidence`.
 
 ## Conventions already in the code
 
@@ -121,6 +169,13 @@ rebuild the image, and include both files in the patch.
 - Generated migrations get a short comment at the top saying what they do.
 - Settings are read with the `env`, `env_bool` and `env_list` helpers, and
   every variable is documented in `.env.example`.
+- Choice lists used by more than one app (`Language`, `DatePrecision`) are in
+  `entries/choices.py`. A date with a precision is stored as typed and written
+  out with `format_partial_date` from the same module.
+- Inline children (`Orderable` with a `ParentalKey`) list their form fields
+  in their own `panels`; the parent only names the `InlinePanel`.
+- Tests that upload files send them to a temporary folder: see
+  `TemporaryMediaMixin` in `evidence/tests/test_sources.py`.
 
 ## Build plan
 
@@ -129,11 +184,11 @@ Delivered so far:
 - `0001` project scaffold
 - `0002` speakers and topics
 - `0003` this handoff
+- `0004` sources and saved copies (`evidence` app)
 
 Remaining, in this order. Each is one patch. Ask the questions listed for the
 step in `docs/spec.md` before building it.
 
-4. Sources and saved copies (`evidence` app)
 5. Fact sheets, with their citations and corrections
 6. Actions, with their citations and corrections
 7. The Wayback capture job (Django-Q2)

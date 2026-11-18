@@ -69,6 +69,7 @@ CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 INSTALLED_APPS = [
     # This project's own apps.
     "entries",
+    "evidence",
     # Wagtail: the editing interface and everything it needs.
     "wagtail.embeds",
     "wagtail.sites",
@@ -196,6 +197,40 @@ STORAGES = {
     },
 }
 
+# Stored files are the complete files kept as saved copies of a source (see
+# evidence.models.Capture). They are public.
+#
+# The file types that may be uploaded, judged by the file name's extension.
+# The HTML types are allowed by the owner's decision. An HTML file can run
+# scripts in the browser of whoever opens it, so the production setup must
+# make sure stored files cannot do that on the site's own address.
+STORED_FILE_EXTENSIONS = [
+    # Documents
+    "pdf",
+    # Images
+    "jpg",
+    "jpeg",
+    "png",
+    "webp",
+    # Video
+    "mp4",
+    "webm",
+    "mkv",
+    "mov",
+    # Audio
+    "mp3",
+    "m4a",
+    "ogg",
+    "wav",
+    # Saved web pages
+    "html",
+    "mhtml",
+]
+
+# The largest stored file that may be uploaded, in megabytes (1 MB is counted
+# as 1024 x 1024 bytes).
+STORED_FILE_MAX_MB = int(env("STORED_FILE_MAX_MB", "500"))
+
 
 # ---------------------------------------------------------------------------
 # Wagtail
@@ -215,5 +250,6 @@ WAGTAILSEARCH_BACKENDS = {
 }
 
 # File types accepted by Wagtail's own document library. This does not limit
-# the evidence files stored by this project, which get their own rules.
+# the evidence files stored by this project, which have their own rules:
+# STORED_FILE_EXTENSIONS and STORED_FILE_MAX_MB above.
 WAGTAILDOCS_EXTENSIONS = ["csv", "docx", "key", "odt", "pdf", "pptx", "rtf", "txt", "xlsx", "zip"]

@@ -1,7 +1,7 @@
 # Specification
 
 The agreed design of the fact tracker's backend, as decided by the owner up to
-15 November 2026. Anything not written here is **not decided**: ask.
+16 November 2026. Anything not written here is **not decided**: ask.
 
 Contents: [Scope](#1-scope) · [Data model](#2-data-model) · [Choices](#3-choices) ·
 [Rules](#4-rules) · [Left out on purpose](#5-left-out-on-purpose) ·
@@ -45,11 +45,16 @@ Which app holds what:
 
 | App | Models |
 | --- | --- |
-| `entries` | `Speaker`, `Topic` (built), `Entry`, `FactSheet`, `Action` |
-| `evidence` | `Source`, `Capture`, `Citation` and its four subclasses |
+| `entries` | `Speaker`, `Topic` (built), `Entry`, `FactSheet`, `Action`, `Correction` and its two subclasses |
+| `evidence` | `Source`, `Capture` (built), `Citation` and its four subclasses |
 | `api` | No models: the read-only API and the bulk downloads |
 
-The home of `Correction` and its two subclasses is not decided.
+`Correction` and its two subclasses live in `entries` (decided 15 November
+2026): a correction is part of an entry's public record.
+
+`evidence` imports from `entries`, because its citations point at fact sheets
+and actions. `entries` therefore never imports from `evidence`. The choice
+lists both apps use (`*_language`, `*_precision`) are in `entries/choices.py`.
 
 ### 2.1 Fact sheets
 
@@ -168,7 +173,8 @@ Action "0..*" --> "0..1" Speaker : contradicted_speaker
 Every citation points to one `Source` and says where in it to look: a page, a
 start and end time, a note, or the exact excerpt. One source can back many
 entries. Its `Capture` rows are saved copies. `job_id` and `error` belong to
-the automatic Wayback capture.
+the automatic Wayback capture. `published_on_precision` says how much of a
+source's publication date is known (rule 16).
 
 ```mermaid
 %% Figure 3: evidence. Each citation points at one Source and says where in it to look.
@@ -214,6 +220,7 @@ class Source {
   publisher : CharField
   language : CharField
   published_on : DateField
+  published_on_precision : CharField
   original_url : URLField
   notes : TextField
 }
@@ -288,10 +295,14 @@ Correction <|-- ActionCorrection
 | `Speaker.kind` | person · body |
 | `Action.kind` | contradiction · notable (only "contradiction" can be chosen for now) |
 | `Action.action_type` | government_order · cabinet_decision · legislation · budget_spending · appointment · reversal · other |
-| `Source.kind` | video · news_article · newspaper_clipping · official_document · archive_link · other |
+| `Source.kind` | video · news_article · newspaper_clipping · official_document · social_media_post · other |
 | `Capture.method` | wayback · archive_today · stored_file |
 | `Capture.status` | pending · ok · failed |
 | `Correction.kind` | correction · clarification · update |
+
+`archive_link` was removed from `Source.kind` on 15 November 2026: the kind
+says what a source is, and that it survives only as an archive is shown by its
+saved copies. `social_media_post` was added the same day.
 
 ## 4. Rules
 
@@ -324,7 +335,10 @@ Correction <|-- ActionCorrection
    capture on the Django-Q2 worker. The result is a `Capture` with a status,
    the Internet Archive's job ID and, on failure, the error. archive.today
    links and stored files are added by hand. Stored files are the full files,
-   are public, and carry a SHA-256 hash.
+   are public, and carry a SHA-256 hash. A Wayback link can also be added by
+   hand, for example an older snapshot of a page that was later changed. A
+   copy added by hand has the status `ok` and no job ID. The queue itself
+   arrives with step 7: until then saving a source queues nothing.
 9. **Storage.** Stored files are kept on the server's disk for now.
 10. **Public data.** A read-only JSON API plus bulk CSV and JSON downloads.
     Both carry published entries only, show retracted ones with their
@@ -332,6 +346,28 @@ Correction <|-- ActionCorrection
     internal and never public.
 11. **Version history** is kept for fact sheets and actions only.
 12. **Admin menu.** Every model has its own item in the Wagtail main menu.
+13. **Sources.** A source needs a kind and a title. Language, publisher,
+    publication date, original URL and notes are optional. Two sources may
+    have the same original URL: the second one is saved, and the admin then
+    shows a warning that names the others. Only exactly the same address
+    counts. The list shows the newest added source first.
+14. **Saved copies.** A Wayback or archive.today copy needs a link and refuses
+    a file. A Wayback link must be on `web.archive.org`; archive.today links
+    are not checked, because that site uses many changing addresses. A
+    stored-file copy needs a file and may also have a link, for the address
+    the file was downloaded from. `captured_at` starts as the time the copy is
+    added and can be changed.
+15. **Stored files.** Allowed types, judged by the file name's extension: pdf ·
+    jpg · jpeg · png · webp · mp4 · webm · mkv · mov · mp3 · m4a · ogg · wav ·
+    html · mhtml. The largest file is 500 MB; the number is `STORED_FILE_MAX_MB`
+    in `.env`. A file keeps its own name inside a folder for the year and month
+    of the upload, such as `captures/2026/11/Budget_speech.pdf`, with Django's
+    standard clean-up of the name (see section 9). Only a new upload is
+    checked: a file that is already stored is never refused later.
+16. **Partial dates.** When a date's precision is month or year, the date is
+    stored exactly as typed. Only the display hides the part that is not
+    known. This holds for a source's publication date now, and for the dates
+    on fact sheets and actions when they are built.
 
 ## 5. Left out on purpose
 
@@ -361,11 +397,8 @@ These came up during design and were not settled. The list is a start, not a
 limit: ask about anything else that is unclear.
 
 **4. Sources and saved copies**
-- Which file types and what maximum size are allowed for stored files?
-- May two sources share the same `original_url`?
-- What does the source type `archive_link` mean beside saved copies?
-- Which fields does each `Capture.method` require (link, file, or both)?
-- Which app holds the corrections models?
+- Answered on 15 November 2026. The decisions are in sections 2, 3 and 4
+  (rules 8 and 13 to 16).
 
 **5. Fact sheets**
 - Is `slug` typed by hand or generated, and from what?
@@ -381,6 +414,10 @@ limit: ask about anything else that is unclear.
 - Where do the Internet Archive API keys come from, and who creates the account?
 - How often, and how many times, is a failed capture retried?
 - Should Django's own admin be added to show Django-Q2's task screens?
+- Which saves queue a capture: every save of a source with an original URL,
+  or only while it has no Wayback copy yet?
+- `status`, `job_id` and `error` are not on the source form yet. Show them,
+  read-only, once the job exists?
 
 **8. API and downloads**
 - The URL prefix and version, the page size, and which filters are offered.
@@ -393,6 +430,11 @@ limit: ask about anything else that is unclear.
 
 **10. Production**
 - Hosting, HTTPS, backups, and where stored files live.
+- Stored files may be HTML (owner's decision), and an HTML file opened from
+  the site's own address can run scripts there. How are stored files served
+  safely: as downloads, or from a separate address?
+- Uploads may be up to 500 MB. The web server, and any proxy in front of it,
+  must allow that (see the Cloudflare limit in section 9).
 - Split the instructions: one file for development, one for production.
 
 ## 8. Provisional choices
@@ -410,6 +452,30 @@ has seen them and may change any of them:
   also enforces "at least one name".
 - Duplicate speaker or topic names are allowed. Names hold up to 200 characters.
 - When both names exist the English one is the label, and lists sort by it.
+
+Made while building patch 4, in the same way:
+
+- The shared choice lists are in `entries/choices.py`, with the helper that
+  writes out a partial date ("March 2023", "2023").
+- `status`, `job_id` and `error` are in the database but not on the source
+  form. The SHA-256 hash is shown on the form and cannot be edited.
+- Lengths: title 500 characters, publisher 200, web addresses 2000, the path
+  of a stored file 500.
+- The Sources list shows title, kind, publisher, publication date and the
+  number of saved copies. It filters by kind and language. Search looks at the
+  title, the publisher and the original URL, and not at `notes`.
+- The form labels the source's type "Kind", as the Speakers form does.
+- `social_media_post` sits just before `other` in the list of kinds.
+- Removing a saved copy, replacing its file or deleting a source leaves the
+  stored file on disk.
+- `htm` is not an allowed file type; `html` and `mhtml` are. 1 MB is counted
+  as 1024 x 1024 bytes.
+- A Wayback link must be on exactly `web.archive.org`, in any letter case.
+- An automatic Wayback capture that is pending or failed needs no link.
+- The same-URL warning names up to three other sources and counts the rest.
+- The setting is named `STORED_FILE_MAX_MB`. The list of allowed file types is
+  in `config/settings.py`, not in `.env`.
+- The migration was formatted with black, to match the first migration.
 
 ## 9. Useful facts
 
@@ -433,3 +499,19 @@ Checked on 15 November 2026. Check again before relying on them.
   branch when it stops; rule 2 in `CLAUDE.md` overrides that.
 - Patches 1 and 2 were written where Docker could not run and only
   PostgreSQL 16 was available. The owner reported that patch 1 passed.
+  Both were run in a cloud session on 15 November 2026, in Docker with
+  PostgreSQL 18.7, Django 5.2.19 and Wagtail 7.4.4: every test passed.
+- In a cloud session Docker is installed but its daemon is not running, and
+  programs inside a container do not trust the session's network certificate,
+  so `docker compose build` fails at `pip install uv`. `CLAUDE.md` has the
+  start-up steps for both. The daemon also stops whenever the session's worker
+  restarts, and then needs its old process-ID files removed before it starts.
+- Django cleans the name of an uploaded file: spaces become underscores, and
+  every character that is not a letter, a digit, a dot, a hyphen or an
+  underscore is dropped. Malayalam vowel signs are dropped too, so
+  `ധനകാര്യ വകുപ്പ്.pdf` is stored as `ധനകരയ_വകപപ.pdf`. A second file with the
+  same name gets seven random letters added.
+- Wagtail's own "Copy" action on a source (in the list's "..." menu) makes a
+  new source with its own copies of the link copies. A stored file is not
+  carried over: it has to be uploaded again or that copy removed.
+- A web address typed without `http://` or `https://` is saved with `https://`.
